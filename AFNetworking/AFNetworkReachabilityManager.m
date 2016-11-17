@@ -20,6 +20,11 @@
 // THE SOFTWARE.
 
 #import "AFNetworkReachabilityManager.h"
+
+#if TARGET_OS_IOS
+#import <UIKit/UIKit.h>
+#endif
+
 #if !TARGET_OS_WATCH
 
 #import <netinet/in.h>
@@ -116,21 +121,32 @@ static void AFNetworkReachabilityReleaseCallback(const void *info) {
     static AFNetworkReachabilityManager *_sharedManager = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-#if (defined(__IPHONE_OS_VERSION_MIN_REQUIRED) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 90000) || (defined(__MAC_OS_X_VERSION_MIN_REQUIRED) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101100)
-        struct sockaddr_in6 address;
-        bzero(&address, sizeof(address));
-        address.sin6_len = sizeof(address);
-        address.sin6_family = AF_INET6;
-#else
-        struct sockaddr_in address;
-        bzero(&address, sizeof(address));
-        address.sin_len = sizeof(address);
-        address.sin_family = AF_INET;
+        BOOL shouldUseIPv6 = false;
+#if (defined(__IPHONE_OS_VERSION_MIN_REQUIRED) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 90000)
+        shouldUseIPv6 = true;
+#elif TARGET_OS_IOS
+        float ver = [[[UIDevice currentDevice] systemVersion] floatValue];
+        if (ver >= 9) {
+            shouldUseIPv6 = true;
+        }
+#elif (defined(__MAC_OS_X_VERSION_MIN_REQUIRED) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101100)
+        shouldUseIPv6 = true;
 #endif
-
-        _sharedManager = [self managerForAddress:&address];
+        if (shouldUseIPv6) {
+            struct sockaddr_in6 address;
+            bzero(&address, sizeof(address));
+            address.sin6_len = sizeof(address);
+            address.sin6_family = AF_INET6;
+            _sharedManager = [self managerForAddress:&address];
+        } else {
+            struct sockaddr_in address;
+            bzero(&address, sizeof(address));
+            address.sin_len = sizeof(address);
+            address.sin_family = AF_INET;
+            _sharedManager = [self managerForAddress:&address];
+        }
     });
-
+    
     return _sharedManager;
 }
 
